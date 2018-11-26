@@ -49,7 +49,7 @@ conda install matplotlib
 conda install spyder
 ```
 ## Training
-Running the ``cgan.py`` will train the network using the MNIST dataset.
+Running the ``cgan.py`` will train the network using the MNIST dataset. Training costs around 1h30m on a GTX1060 GPU
 ### Two phase training
 #### Phase one: Initial Discriminator Training
 In this phase, we only train the discriminator for a few iterations in order to obtain an initial discriminator that is usable for training the generator
@@ -91,6 +91,9 @@ But after around 20k iterations, the generator should start to be able to genera
 ![Final results](samples/result_sample.png "Final results")
 
 The trained network should give somewhat good results
+
+## Testing
+``cgan_test.py`` can be ran after one full training cycle. Currently ``cgan_test.py`` only generates one set of images 0-9 with a single random seed.
 
 ## Author
 
