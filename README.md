@@ -88,7 +88,7 @@ At first the generated images will look like noise
 
 But after around 20k iterations, the generator should start to be able to generate some images that look like numbers
 
-![Final results](samples/results_sample.png "Final results")
+![Final results](samples/result_sample.png "Final results")
 
 The trained network should give somewhat good results
 
