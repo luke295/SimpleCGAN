@@ -102,3 +102,10 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Tensorflow and more
+results*/**
+tensorboard/**
+**model*.ckpt*
+checkpoint
+MNIST**
