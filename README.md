@@ -108,3 +108,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 This code was initially written by following the [Generative Adversarial Networks for beginners](https://www.oreilly.com/learning/generative-adversarial-networks-for-beginners) tutorial by Jon Bruner and Adit Deshpande. I then modified into CGAN
+
+## Reference
+[GAN — CGAN & InfoGAN (using labels to improve GAN)](https://medium.com/@jonathan_hui/gan-cgan-infogan-using-labels-to-improve-gan-8ba4de5f9c3d)
