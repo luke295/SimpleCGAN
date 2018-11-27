@@ -15,21 +15,19 @@ import time
 import matplotlib.pyplot as plt
 import pathlib
 
-from tensorflow.examples.tutorials.mnist import input_data
-mnist = input_data.read_data_sets("MNIST_data/")
-
-sample_image = mnist.train.next_batch(1)[0]
-
-# Show a sample image of mnist
-sample_image = sample_image.reshape([28, 28])
-plt.imshow(sample_image, cmap = 'Greys')
+# A function to read cifar10 dataset files
+def unpickle(file):
+    import pickle
+    with open(file, 'rb') as fo:
+        dict = pickle.load(fo, encoding='bytes')
+    return dict
 
 # Definition of the discriminator
 def discriminator(images, labels, reuse = False):
     if(reuse):
         tf.get_variable_scope().reuse_variables()
     
-    d_w1 = tf.get_variable('d_w1', [5, 5, 1, 32], initializer = tf.truncated_normal_initializer(stddev= 0.02))
+    d_w1 = tf.get_variable('d_w1', [5, 5, 3, 32], initializer = tf.truncated_normal_initializer(stddev= 0.02))
     d_b1 = tf.get_variable('d_b1', [32], initializer = tf.constant_initializer(0))
     
     d1 = tf.nn.conv2d(input = images, filter = d_w1, strides = [1, 1, 1, 1], padding = 'SAME')
@@ -45,10 +43,10 @@ def discriminator(images, labels, reuse = False):
     d2 = tf.nn.relu(d2)
     d2 = tf.nn.avg_pool(value = d2, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = 'SAME')
     
-    d_w3s = tf.get_variable('d_w3s', [7 * 7 * 64 + 10, 1024], initializer = tf.truncated_normal_initializer(stddev = 0.02))
+    d_w3s = tf.get_variable('d_w3s', [8 * 8 * 64 + 10, 1024], initializer = tf.truncated_normal_initializer(stddev = 0.02))
     d_b3s = tf.get_variable('d_b3s', [1024], initializer = tf.constant_initializer(0))
     
-    d3s = tf.reshape(d2, [-1, 7 * 7 * 64])
+    d3s = tf.reshape(d2, [-1, 8 * 8 * 64])
     d3s = tf.concat([d3s, labels], 1)
     d3s = tf.matmul(d3s, d_w3s)
     d3s = d3s + d_b3s
@@ -61,10 +59,10 @@ def discriminator(images, labels, reuse = False):
     d4s = d4s + d_b4s
     #d4s = tf.sigmoid(d4s)
     
-    d_w3c = tf.get_variable('d_w3c', [7 * 7 * 64, 1024], initializer = tf.truncated_normal_initializer(stddev = 0.02))
+    d_w3c = tf.get_variable('d_w3c', [8 * 8 * 64, 1024], initializer = tf.truncated_normal_initializer(stddev = 0.02))
     d_b3c = tf.get_variable('d_b3c', [1024], initializer = tf.constant_initializer(0))
     
-    d3c = tf.reshape(d2, [-1, 7 * 7 * 64])
+    d3c = tf.reshape(d2, [-1, 8 * 8 * 64])
     d3c = tf.matmul(d3c, d_w3c)
     d3c = d3c + d_b3c
     d3c = tf.nn.relu(d3c)
@@ -74,7 +72,7 @@ def discriminator(images, labels, reuse = False):
     
     d4c = tf.matmul(d3c, d_w4c)
     d4c = d4c + d_b4c
-    d4c = tf.nn.softmax(d4c)
+    #d4c = tf.nn.softmax(d4c)
     
     return (d4s, d4c, labels)
 
@@ -84,22 +82,22 @@ def generator(z, c, batch_size, z_dim = 100, c_dim = 10, reuse = False):
         tf.get_variable_scope().reuse_variables()
         
     dim = z_dim + c_dim
-    g_w1 = tf.get_variable('g_w1', [dim, 3136], dtype=tf.float32, initializer=tf.truncated_normal_initializer(stddev=0.02))
-    g_b1 = tf.get_variable('g_b1', [3136], initializer=tf.truncated_normal_initializer(stddev=0.02))
+    g_w1 = tf.get_variable('g_w1', [dim, 12288], dtype=tf.float32, initializer=tf.truncated_normal_initializer(stddev=0.02))
+    g_b1 = tf.get_variable('g_b1', [12288], initializer=tf.truncated_normal_initializer(stddev=0.02))
     zc = tf.concat([z, c], 1)
     g1 = tf.matmul(zc, g_w1) + g_b1
-    g1 = tf.reshape(g1, [-1, 56, 56, 1])
+    g1 = tf.reshape(g1, [-1, 64, 64, 3])
     g1 = tf.contrib.layers.batch_norm(g1, epsilon=1e-5, scope='bn1')
     g1 = tf.nn.relu(g1)
 
     # Generate 50 features
-    g_w2 = tf.get_variable('g_w2', [3, 3, 1, math.ceil(dim/2)], dtype=tf.float32, initializer=tf.truncated_normal_initializer(stddev=0.02))
+    g_w2 = tf.get_variable('g_w2', [3, 3, 3, math.ceil(dim/2)], dtype=tf.float32, initializer=tf.truncated_normal_initializer(stddev=0.02))
     g_b2 = tf.get_variable('g_b2', [math.ceil(dim/2)], initializer=tf.truncated_normal_initializer(stddev=0.02))
     g2 = tf.nn.conv2d(input = g1, filter = g_w2, strides=[1, 2, 2, 1], padding='SAME')
     g2 = g2 + g_b2
     g2 = tf.contrib.layers.batch_norm(g2, epsilon=1e-5, scope='bn2')
     g2 = tf.nn.relu(g2)
-    g2 = tf.image.resize_images(g2, [56, 56])
+    g2 = tf.image.resize_images(g2, [64, 64])
 
     # Generate 25 features
     g_w3 = tf.get_variable('g_w3', [3, 3, math.ceil(dim/2), math.ceil(dim/4)], dtype=tf.float32, initializer=tf.truncated_normal_initializer(stddev=0.02))
@@ -108,17 +106,58 @@ def generator(z, c, batch_size, z_dim = 100, c_dim = 10, reuse = False):
     g3 = g3 + g_b3
     g3 = tf.contrib.layers.batch_norm(g3, epsilon=1e-5, scope='bn3')
     g3 = tf.nn.relu(g3)
-    g3 = tf.image.resize_images(g3, [56, 56])
+    g3 = tf.image.resize_images(g3, [64, 64])
 
-    # Final convolution with one output channel
-    g_w4 = tf.get_variable('g_w4', [1, 1, math.ceil(dim/4), 1], dtype=tf.float32, initializer=tf.truncated_normal_initializer(stddev=0.02))
-    g_b4 = tf.get_variable('g_b4', [1], initializer=tf.truncated_normal_initializer(stddev=0.02))
+    # Final convolution with three output channel
+    g_w4 = tf.get_variable('g_w4', [1, 1, math.ceil(dim/4), 3], dtype=tf.float32, initializer=tf.truncated_normal_initializer(stddev=0.02))
+    g_b4 = tf.get_variable('g_b4', [3], initializer=tf.truncated_normal_initializer(stddev=0.02))
     g4 = tf.nn.conv2d(input = g3, filter = g_w4, strides=[1, 2, 2, 1], padding='SAME')
     g4 = g4 + g_b4
     g4 = tf.sigmoid(g4)
 
     # Dimensions of g4: batch_size x 28 x 28 x 1
     return g4
+
+class cifar10():
+    def __init__(self, data_folder):
+        self.data_folder = data_folder
+        self.label_text = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+        self.images = np.zeros((0, 32, 32, 3), dtype=np.uint8)
+        self.labels = np.zeros((0), dtype=np.uint8)
+        self.batch_start_index = 0
+        self.batch_end_index = 0
+        for i in range(1, 6):
+            file_name = '{}/data_batch_{}'.format(self.data_folder, i)
+            cifar10_dic = unpickle(file_name)
+            data = cifar10_dic[b'data']
+            batch_images = np.transpose(data.reshape([10000, 32, 32, 3], order='F'), (0, 2, 1, 3))
+            batch_labels = np.asarray(cifar10_dic[b'labels'])
+            
+            self.images = np.concatenate((self.images, batch_images))
+            self.labels = np.concatenate((self.labels, batch_labels))
+        
+    def shuffle(self):
+        index = np.random.permutation(len(self.labels))
+        self.images = self.images[index]
+        self.labels = self.labels[index]
+        
+    def get_next_batch(self, batch_size):
+        self.batch_end_index = self.batch_start_index + batch_size
+        if(self.batch_end_index > len(self.labels)):
+            self.batch_start_index = 0
+            self.batch_end_index = batch_size
+            self.shuffle()
+            
+        index = np.arange(self.batch_start_index, self.batch_end_index)
+        batch_images = self.images[index]
+        batch_labels = self.labels[index]
+        
+        self.batch_start_index = self.batch_end_index
+        
+        return(batch_labels, batch_images)
+        
+# Read dataset
+cifar10 = cifar10('cifar-10')
 
 # Starting the session
 sess = tf.Session()
@@ -135,7 +174,7 @@ z_placeholder = tf.placeholder(tf.float32, [None, z_dimensions], name='z_placeho
 l_placeholder = tf.placeholder(tf.float32, [None, l_dimensions], name='l_placeholder')
 # l_placeholder is for feeding groundtruth labels to the network
 
-x_placeholder = tf.placeholder(tf.float32, shape = [None,28,28,1], name='x_placeholder') 
+x_placeholder = tf.placeholder(tf.float32, shape = [None,32,32,3], name='x_placeholder') 
 # x_placeholder is for feeding input images to the discriminator
 
 rl_placeholder = tf.placeholder(tf.int32, shape = [None], name='rl_placeholder')
@@ -200,11 +239,10 @@ writer = tf.summary.FileWriter(logdir, sess.graph)
 sess.run(tf.global_variables_initializer())
 
 # Pre-train discriminator
-for i in range(300):
+for i in range(1000):
     z_batch = np.random.normal(0, 1, size=[batch_size, z_dimensions])
-    real_batch = mnist.train.next_batch(batch_size)
-    real_image_batch = real_batch[0].reshape([batch_size, 28, 28, 1])
-    real_label_batch = real_batch[1]
+    real_label_batch, real_image_batch = cifar10.get_next_batch(batch_size)
+
     real_label_batch = sess.run(convert_onehot, feed_dict={rl_placeholder: real_label_batch})
     _, dLossRealScore, dLossRealClass, dLossFake = sess.run([d_trainer, d_loss_real_score, d_loss_real_class, d_loss_fake],
                                            {x_placeholder: real_image_batch, z_placeholder: z_batch, l_placeholder: real_label_batch})
@@ -216,9 +254,7 @@ s_time = time.perf_counter()
 # Train generator and discriminator together
 for i in range(100000):
     loop_start_t = time.perf_counter()
-    real_batch = mnist.train.next_batch(batch_size)
-    real_image_batch = real_batch[0].reshape([batch_size, 28, 28, 1])
-    real_label_batch = real_batch[1]
+    real_label_batch, real_image_batch = cifar10.get_next_batch(batch_size)
     real_label_batch = sess.run(convert_onehot, feed_dict={rl_placeholder: real_label_batch})
     z_batch = np.random.normal(0, 1, size=[batch_size, z_dimensions])
 
@@ -253,17 +289,17 @@ for i in range(100000):
                 n = a * 5 + b
                 labels = np.zeros((1, l_dimensions))
                 labels[0][n] = 1.0
-                print('Generate Class: ', np.argmax(labels, axis = 1))
+                print('Generate Class: ', cifar10.label_text[np.argmax(labels, axis = 1)[0]])
                 
                 # Generate an image of number n
                 images = sess.run(Gz, {z_placeholder: z_batch, l_placeholder: labels})
-                axarr[a, b].imshow(images[0].reshape([28, 28]), cmap='Greys')
+                axarr[a, b].imshow(images[0].reshape([32, 32, 3]), cmap='Greys')
                 
                 # Show discriminator's estimate of the generated image
-                im = images[0].reshape([1, 28, 28, 1])
+                im = images[0].reshape([1, 32, 32, 3])
                 estimate = sess.run(Dx, {x_placeholder: im, l_placeholder: labels})
                 print("Estimate Score:", estimate[0])
-                print("Estimate Class:", np.argmax(estimate[1]))
+                print("Estimate Class:", cifar10.label_text[np.argmax(estimate[1])])
                 
                 pathlib.Path('results/{}'.format(n)).mkdir(parents=True, exist_ok=True)
                 file_name = 'results/{}/{}_targ_{}_est_{}_score_{}.png'.format(n, i, n, np.argmax(estimate[1]), estimate[0][0][0])
@@ -281,18 +317,17 @@ for i in range(100000):
         plt.show()
         
         # Test the discrimintor
-        test_image = mnist.train.next_batch(1)
+        test_label_index, test_image = cifar10.get_next_batch(1)
         test_label = np.zeros((1, l_dimensions))
-        test_label[0][test_image[1]] = 1.0
-        test_image = test_image[0].reshape([1, 28, 28, 1])
+        test_label[0][test_label_index] = 1.0
         
         dscore, dclass, _ = sess.run(Dx, {x_placeholder: test_image, l_placeholder: test_label})
         
-        plt.imshow(test_image.reshape([28, 28]), cmap='Greys')
+        plt.imshow(test_image.reshape([32, 32, 3]), cmap='Greys')
         plt.show()
         
         print('Score: ', dscore)
-        print('Class', np.argmax(dclass))
+        print('Class', cifar10.label_text[np.argmax(dclass)])
 
 e_time = time.perf_counter()
 print('Training time:', e_time - s_time, 's')

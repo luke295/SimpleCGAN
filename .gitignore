@@ -109,3 +109,4 @@ tensorboard/**
 **model*.ckpt*
 checkpoint
 MNIST**
+cifar-10**
