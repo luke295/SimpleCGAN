@@ -74,7 +74,6 @@ def discriminator(images, labels, reuse = False):
     
     d4c = tf.matmul(d3c, d_w4c)
     d4c = d4c + d_b4c
-    d4c = tf.nn.softmax(d4c)
     
     return (d4s, d4c, labels)
 
