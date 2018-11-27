@@ -11,6 +11,7 @@ import tensorflow as tf
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import time
 
 def discriminator(images, labels, reuse = False):
     if(reuse):
@@ -127,36 +128,24 @@ with tf.variable_scope(tf.get_variable_scope()):
     Gz = generator(z_placeholder, l_placeholder, batch_size, z_dimensions, l_dimensions) 
     # Gz holds the generated images
     
-    Dx = discriminator(x_placeholder, l_placeholder) 
-    # Dx will hold discriminator prediction probabilities
-    # for the real MNIST images
-    
-    Dg = discriminator(Gz, l_placeholder, reuse=True)
-    # Dg will hold discriminator prediction probabilities for generated images
-    
-    DTest = discriminator(x_placeholder, l_placeholder, reuse=True)
-    # DTest will hold the discriminator prediction probabilities for a test image
-    
-    generated_images = generator(z_placeholder, l_placeholder, 1, z_dimensions, l_dimensions, True)
-    # generated_images will hold the generated image of a given test scenario
-    
-    convert_onehot = tf.one_hot(rl_placeholder, 10)
-    # convert_onehot will hold the designated onehot label of a given number
-    
 saver = tf.train.Saver()
 saver.restore(sess, "./model_cgan.ckpt")
 
 while(input('Generate new?') == 'yes'):
     f, axarr = plt.subplots(2, 5)
     z_batch = np.random.normal(0, 1, size=[1, z_dimensions])
+    d_time = np.zeros(10)
     for a in range(2):
         for b in range(5):
             labels = np.zeros((1, l_dimensions))
             labels[0][a * 5 + b] = 1.0
-            
-            images = sess.run(generated_images, {z_placeholder: z_batch, l_placeholder: labels})
+            s_time = time.perf_counter()
+            images = sess.run(Gz, {z_placeholder: z_batch, l_placeholder: labels})
+            e_time = time.perf_counter()
+            d_time[a * 5 + b] = e_time - s_time
             axarr[a, b].imshow(images[0].reshape([28, 28]), cmap='Greys')
             axarr[a, b].axis('off')           
     plt.show()
+    print('Average generation time:', np.average(d_time) * 1000, 'ms')
 
 sess.close()

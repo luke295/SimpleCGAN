@@ -152,12 +152,9 @@ with tf.variable_scope(tf.get_variable_scope()):
     
     Dg = discriminator(Gz, l_placeholder, reuse=True)
     # Dg will hold discriminator prediction probabilities for generated images
-    
-    DTest = discriminator(x_placeholder, l_placeholder, reuse=True)
-    
-    generated_images = generator(z_placeholder, l_placeholder, 1, z_dimensions, l_dimensions, True)
-    
+
     convert_onehot = tf.one_hot(rl_placeholder, 10)
+    # convert_onehot will hold the designated onehot label of a given number
 
 # Defining losses
 lam = 0.7
@@ -215,6 +212,7 @@ for i in range(300):
     if(i % 100 == 0):
         print("dLossRealScore:", dLossRealScore, "dLossRealClass:", dLossRealClass, "dLossFake:", dLossFake)
 
+s_time = time.perf_counter()
 # Train generator and discriminator together
 for i in range(100000):
     loop_start_t = time.perf_counter()
@@ -233,14 +231,12 @@ for i in range(100000):
     _ = sess.run(g_trainer, feed_dict={z_placeholder: z_batch, l_placeholder: real_label_batch})
 
     if i % 10 == 0:
-        #print('Update summary')
         # Update TensorBoard with summary statistics
         z_batch = np.random.normal(0, 1, size=[batch_size, z_dimensions])
         summary = sess.run(merged, {z_placeholder: z_batch, x_placeholder: real_image_batch, l_placeholder: real_label_batch})
         writer.add_summary(summary, i)
 
     if i % 100 == 0:
-       # print('Testing GAN')
         # Every 100 iterations, show generated images of all numbers
         print("Iteration:", i, "at", datetime.datetime.now())
         print("dLossReal:", dLossReal, "dLossFake:", dLossFake)
@@ -260,7 +256,7 @@ for i in range(100000):
                 print('Generate Class: ', np.argmax(labels, axis = 1))
                 
                 # Generate an image of number n
-                images = sess.run(generated_images, {z_placeholder: z_batch, l_placeholder: labels})
+                images = sess.run(Gz, {z_placeholder: z_batch, l_placeholder: labels})
                 axarr[a, b].imshow(images[0].reshape([28, 28]), cmap='Greys')
                 
                 # Show discriminator's estimate of the generated image
@@ -290,18 +286,16 @@ for i in range(100000):
         test_label[0][test_image[1]] = 1.0
         test_image = test_image[0].reshape([1, 28, 28, 1])
         
-        dscore, dclass, _ = sess.run(DTest, {x_placeholder: test_image, l_placeholder: test_label})
+        dscore, dclass, _ = sess.run(Dx, {x_placeholder: test_image, l_placeholder: test_label})
         
         plt.imshow(test_image.reshape([28, 28]), cmap='Greys')
         plt.show()
         
         print('Score: ', dscore)
         print('Class', np.argmax(dclass))
-    
-    loop_end_t = time.perf_counter()
-    
-    #print('Loop ', i, ',  Loop time: ', loop_end_t - loop_start_t, ' s')
 
+e_time = time.perf_counter()
+print('Training time:', e_time - s_time, 's')
 saver.save(sess, './model_cgan.ckpt')
 
 sess.close()
