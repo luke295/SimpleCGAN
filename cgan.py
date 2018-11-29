@@ -32,7 +32,7 @@ def discriminator(images, labels, reuse = False):
     
     d1 = tf.nn.conv2d(input = images, filter = d_w1, strides = [1, 1, 1, 1], padding = 'SAME')
     d1 = d1 + d_b1  
-    d1 = tf.nn.relu(d1)
+    d1 = tf.nn.leaky_relu(d1)
     d1 = tf.nn.avg_pool(value = d1, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = 'SAME')
     
     d_w2 = tf.get_variable('d_w2', [5, 5, 32, 64], initializer = tf.truncated_normal_initializer(stddev=0.02))
@@ -40,7 +40,7 @@ def discriminator(images, labels, reuse = False):
     
     d2 = tf.nn.conv2d(input = d1, filter = d_w2, strides = [1, 1, 1, 1], padding = 'SAME')
     d2 = d2 + d_b2
-    d2 = tf.nn.relu(d2)
+    d2 = tf.nn.leaky_relu(d2)
     d2 = tf.nn.avg_pool(value = d2, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = 'SAME')
     
     d_w3s = tf.get_variable('d_w3s', [8 * 8 * 64 + 10, 1024], initializer = tf.truncated_normal_initializer(stddev = 0.02))
@@ -50,7 +50,7 @@ def discriminator(images, labels, reuse = False):
     d3s = tf.concat([d3s, labels], 1)
     d3s = tf.matmul(d3s, d_w3s)
     d3s = d3s + d_b3s
-    d3s = tf.nn.relu(d3s)
+    d3s = tf.nn.leaky_relu(d3s)
     
     d_w4s = tf.get_variable('d_w4s', [1024, 1], initializer = tf.truncated_normal_initializer(stddev = 0.02))
     d_b4s = tf.get_variable('d_b4s', [1], initializer = tf.constant_initializer(0))
@@ -65,7 +65,7 @@ def discriminator(images, labels, reuse = False):
     d3c = tf.reshape(d2, [-1, 8 * 8 * 64])
     d3c = tf.matmul(d3c, d_w3c)
     d3c = d3c + d_b3c
-    d3c = tf.nn.relu(d3c)
+    d3c = tf.nn.leaky_relu(d3c)
     
     d_w4c = tf.get_variable('d_w4c', [1024, 10], initializer = tf.truncated_normal_initializer(stddev = 0.02))
     d_b4c = tf.get_variable('d_b4c', [10], initializer = tf.constant_initializer(0))
@@ -158,6 +158,7 @@ class cifar10():
         
 # Read dataset
 cifar10 = cifar10('cifar-10')
+cifar10.shuffle()
 
 # Starting the session
 sess = tf.Session()
@@ -180,6 +181,9 @@ x_placeholder = tf.placeholder(tf.float32, shape = [None,32,32,3], name='x_place
 rl_placeholder = tf.placeholder(tf.int32, shape = [None], name='rl_placeholder')
 # rl_placeholder is for feeding a number label to the onehot converter
 
+i_placeholder = tf.placeholder(tf.uint8, shape = [None, 32, 32, 3], name='i_placeholder')
+# i_placeholder is for feeding ann image to the image converter
+
 # Defining network tensors
 with tf.variable_scope(tf.get_variable_scope()):
     Gz = generator(z_placeholder, l_placeholder, batch_size, z_dimensions, l_dimensions) 
@@ -194,6 +198,9 @@ with tf.variable_scope(tf.get_variable_scope()):
 
     convert_onehot = tf.one_hot(rl_placeholder, 10)
     # convert_onehot will hold the designated onehot label of a given number
+    
+    convert_image = tf.image.convert_image_dtype(i_placeholder, tf.float32)
+    # convert_image will hold the converted image
 
 # Defining losses
 lam = 0.7
@@ -218,10 +225,10 @@ print([v.name for v in g_vars])
 
 # Defining trainers
 # Train the discriminator
-d_trainer = tf.train.AdamOptimizer(0.0003).minimize(d_loss, var_list=d_vars)
+d_trainer = tf.train.AdamOptimizer(0.0004).minimize(d_loss, var_list=d_vars)
 
 # Train the generator
-g_trainer = tf.train.AdamOptimizer(0.0001).minimize(g_loss, var_list=g_vars)
+g_trainer = tf.train.AdamOptimizer(0.0003).minimize(g_loss, var_list=g_vars)
 
 saver = tf.train.Saver()
 
@@ -239,11 +246,12 @@ writer = tf.summary.FileWriter(logdir, sess.graph)
 sess.run(tf.global_variables_initializer())
 
 # Pre-train discriminator
-for i in range(1000):
+for i in range(300):
     z_batch = np.random.normal(0, 1, size=[batch_size, z_dimensions])
     real_label_batch, real_image_batch = cifar10.get_next_batch(batch_size)
-
     real_label_batch = sess.run(convert_onehot, feed_dict={rl_placeholder: real_label_batch})
+    real_image_batch = sess.run(convert_image, feed_dict={i_placeholder: real_image_batch})
+    
     _, dLossRealScore, dLossRealClass, dLossFake = sess.run([d_trainer, d_loss_real_score, d_loss_real_class, d_loss_fake],
                                            {x_placeholder: real_image_batch, z_placeholder: z_batch, l_placeholder: real_label_batch})
 
@@ -252,10 +260,11 @@ for i in range(1000):
 
 s_time = time.perf_counter()
 # Train generator and discriminator together
-for i in range(100000):
+for i in range(500000):
     loop_start_t = time.perf_counter()
     real_label_batch, real_image_batch = cifar10.get_next_batch(batch_size)
     real_label_batch = sess.run(convert_onehot, feed_dict={rl_placeholder: real_label_batch})
+    real_image_batch = sess.run(convert_image, feed_dict={i_placeholder: real_image_batch})
     z_batch = np.random.normal(0, 1, size=[batch_size, z_dimensions])
 
     # Train discriminator on both real and fake images with groundtruth labels
@@ -293,7 +302,7 @@ for i in range(100000):
                 
                 # Generate an image of number n
                 images = sess.run(Gz, {z_placeholder: z_batch, l_placeholder: labels})
-                axarr[a, b].imshow(images[0].reshape([32, 32, 3]), cmap='Greys')
+                axarr[a, b].imshow(images[0].reshape([32, 32, 3]))
                 
                 # Show discriminator's estimate of the generated image
                 im = images[0].reshape([1, 32, 32, 3])
@@ -320,10 +329,11 @@ for i in range(100000):
         test_label_index, test_image = cifar10.get_next_batch(1)
         test_label = np.zeros((1, l_dimensions))
         test_label[0][test_label_index] = 1.0
+        test_image = sess.run(convert_image, feed_dict={i_placeholder: test_image})
         
         dscore, dclass, _ = sess.run(Dx, {x_placeholder: test_image, l_placeholder: test_label})
         
-        plt.imshow(test_image.reshape([32, 32, 3]), cmap='Greys')
+        plt.imshow(test_image.reshape([32, 32, 3]))
         plt.show()
         
         print('Score: ', dscore)
